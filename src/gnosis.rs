@@ -14,9 +14,6 @@ use reth_evm::execute::BlockExecutionError;
 
 pub const SYSTEM_ADDRESS: Address = address!("fffffffffffffffffffffffffffffffffffffffe");
 
-// TODO: customize from genesis or somewhere
-pub const BLOCK_REWARDS_CONTRACT: Address = address!("481c034c6d9441db23ea48de68bcae812c5d39ba");
-
 // Codegen from https://github.com/gnosischain/specs/blob/master/execution/withdrawals.md
 sol!(
     function executeSystemWithdrawals(
@@ -107,7 +104,7 @@ where
 /// Ref: <https://github.com/gnosischain/specs/blob/master/execution/posdao-post-merge.md>
 #[inline]
 pub fn apply_block_rewards_contract_call<EXT, DB: Database + DatabaseCommit>(
-    _chain_spec: &ChainSpec,
+    chain_spec: &ChainSpec,
     _block_timestamp: u64,
     coinbase: Address,
     evm: &mut Evm<'_, EXT, DB>,
@@ -115,6 +112,17 @@ pub fn apply_block_rewards_contract_call<EXT, DB: Database + DatabaseCommit>(
 where
     DB::Error: std::fmt::Display,
 {
+    let block_rewards_contract = chain_spec
+        .genesis()
+        .config
+        .extra_fields
+        .get("blockRewardsContract")
+        .ok_or(BlockExecutionError::Other(
+            "blockRewardsContract not defined".to_owned().into(),
+        ))?;
+    let block_rewards_contract: Address = serde_json::from_value(block_rewards_contract.clone())
+        .map_err(|e| BlockExecutionError::Other(Box::new(e)))?;
+
     // get previous env
     let previous_env = Box::new(evm.context.env().clone());
 
@@ -122,7 +130,7 @@ where
     fill_tx_env_with_system_contract_call(
         &mut evm.context.evm.env,
         SYSTEM_ADDRESS,
-        BLOCK_REWARDS_CONTRACT,
+        block_rewards_contract,
         rewardCall {
             benefactors: vec![coinbase],
             // Type 0 = RewardAuthor
