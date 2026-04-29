@@ -129,3 +129,59 @@ jemalloc = ["dep:tikv-jemallocator"]
 testing = []
 failing-tests = []
 serde = []
+
+[patch."https://github.com/paradigmxyz/reth"]
+reth = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-basic-payload-builder = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-chainspec = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-chain-state = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-cli = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-cli-commands = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-cli-runner = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-cli-util = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-consensus = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-db = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-db-api = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-db-common = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-engine-local = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-engine-primitives = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-era = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-era-downloader = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-era-utils = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-errors = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-ethereum-consensus = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-ethereum-engine-primitives = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-ethereum-forks = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-ethereum-payload-builder = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-ethereum-primitives = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-eth-wire-types = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-etl = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-evm = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-evm-ethereum = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-fs-util = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-network-peers = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-node-api = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-node-builder = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-node-ethereum = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-node-metrics = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-payload-builder = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-primitives = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-primitives-traits = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-provider = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-prune-types = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-revm = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-rpc = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-rpc-api = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-rpc-builder = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-stages = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-stages-api = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-stages-types = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-static-file-types = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-storage-api = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-tracing = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-transaction-pool = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-trie = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-trie-db = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-codecs = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-codecs-derive = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
+reth-zstd-compressors = { git = "https://github.com/dapplion/reth", branch = "generic-payload-builder-v1.11.1" }
