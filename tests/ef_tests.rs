@@ -1,26 +1,75 @@
-//! File copied directly from https://github.com/paradigmxyz/reth/tree/main/testing/ef-tests/src
-//! Added nominal Gnosis modifications:
-//! - added EEST tests with the blockchain_tests/{}/{}/{}
-//! - changed ethereum/tests tests to use BlockchainTests path
+//! EF-test harness for `reth_gnosis`.
+//!
+//! Replaces what used to be a 1,478-line copy of upstream's `testing/ef-tests/src/`
+//! with a thin call into the now-publishable `reth-ef-tests` crate, plus the
+//! Gnosis chain-spec extension callback (the only Gnosis-specific change in
+//! the original copy).
+//!
+//! Gated behind the `testing` feature.
+
+#![cfg(feature = "testing")]
+#![allow(missing_docs)]
+
+use reth_chainspec::ChainSpec;
+use reth_cli::chainspec::parse_genesis;
+use reth_ef_tests::{cases::blockchain_test::BlockchainTests, suite::Suite};
+use std::path::PathBuf;
+
+/// Inject Gnosis-specific fields (`eip1559collector`, `blockRewardsContract`,
+/// deposit contract) sourced from the Chiado genesis. The EF test fixtures
+/// don't carry these, but the Gnosis executor's `EvmConfig::new` panics
+/// without them.
+fn inject_gnosis_extras(spec: &mut ChainSpec) {
+    let chiado_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join("chiado_genesis_alloc.json");
+    let chiado: ChainSpec = parse_genesis(chiado_path.to_str().unwrap()).unwrap().into();
+    for k in ["eip1559collector", "blockRewardsContract"] {
+        spec.genesis
+            .config
+            .extra_fields
+            .insert(k.into(), chiado.genesis.config.extra_fields[k].clone());
+    }
+    spec.deposit_contract = chiado.deposit_contract;
+}
+
+fn ethereum_tests_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ethereum-tests/BlockchainTests")
+}
+
+fn eels_blockchain_tests_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/blockchain_tests")
+}
 
 macro_rules! general_state_test {
-    ($test_name:ident, $fork_or_testname:ident $(, $test:ident, $testname:ident)?) => {
+    // ethereum/tests path: stXxx
+    ($test_name:ident, $fork_or_testname:ident) => {
         #[test]
         fn $test_name() {
-            // if test and testname is empty, then return BlockchainTests::new(format!("GeneralStateTests/{}", stringify!($dir))).run();
-            if stringify!($($test)?).is_empty() && stringify!($($testname)?).is_empty() {
-                return BlockchainTests::new(format!("BlockchainTests/GeneralStateTests/{}", stringify!($fork_or_testname))).run();
-            }
-            $(BlockchainTests::new(format!("blockchain_tests/{}/{}/{}", stringify!($fork_or_testname), stringify!($test), stringify!($testname))).run();)?
+            BlockchainTests::new(ethereum_tests_dir().join("GeneralStateTests"))
+                .with_chain_spec_extension(inject_gnosis_extras)
+                .run_only(stringify!($fork_or_testname));
+        }
+    };
+    // EELS path: blockchain_tests/<fork>/<test>/<name>
+    ($test_name:ident, $fork:ident, $test:ident, $testname:ident) => {
+        #[test]
+        fn $test_name() {
+            BlockchainTests::new(
+                eels_blockchain_tests_dir()
+                    .join(stringify!($fork))
+                    .join(stringify!($test)),
+            )
+            .with_chain_spec_extension(inject_gnosis_extras)
+            .run_only(stringify!($testname));
         }
     };
 }
 
-#[allow(missing_docs)]
 mod general_state_tests {
-    use crate::{cases::blockchain_test::BlockchainTests, suite::Suite};
+    use super::*;
 
-    ///////////////////////////// TESTS FROM EXECUTION LAYER SPEC TESTS /////////////////////////////
+    // === EELS tests ===
     general_state_test!(modexp, byzantium, eip198_modexp_precompile, modexp);
     general_state_test!(acl, berlin, eip2930_access_list, acl);
     general_state_test!(dup, frontier, opcodes, dup);
@@ -66,7 +115,7 @@ mod general_state_tests {
         general_state_test!(initcode, shanghai, eip3860_initcode, initcode);
     }
 
-    /////////////////////////////////// TESTS FROM ETHEREUM/TESTS ///////////////////////////////////
+    // === ethereum/tests ===
     general_state_test!(st_args_zero_one_balance, stArgsZeroOneBalance);
     general_state_test!(st_attack, stAttackTest);
     general_state_test!(st_bugs, stBugs);
@@ -131,7 +180,7 @@ mod general_state_tests {
         general_state_test!(st_special, stSpecialTest);
         general_state_test!(st_sstore, stSStoreTest);
         general_state_test!(st_stack, stStackTests);
-        general_state_test!(st_static_call, stStaticCall); // passing, but conflicts with rewards contract
+        general_state_test!(st_static_call, stStaticCall);
         general_state_test!(st_transaction, stTransactionTest);
         general_state_test!(vm_tests, VMTests);
     }
