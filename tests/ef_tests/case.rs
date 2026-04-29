@@ -1,6 +1,6 @@
 //! Test case definitions
 
-use crate::testing::result::{CaseResult, Error};
+use crate::result::{CaseResult, Error};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fmt::Debug,

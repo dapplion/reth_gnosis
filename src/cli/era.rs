@@ -82,11 +82,6 @@ where
         .unwrap_or_default();
 
     while let Some(meta) = rx.recv()? {
-        let receipt_height = static_file_provider
-            .get_highest_static_file_tx(StaticFileSegment::Receipts)
-            .unwrap_or_default();
-        println!("Receipt height: {receipt_height}");
-
         let from = height;
         let provider = provider_factory.database_provider_rw()?;
 
@@ -98,8 +93,6 @@ where
                 stop = true;
             }
         }
-
-        dbg!("Importing {:?}", &range);
 
         height = process(
             &meta?,

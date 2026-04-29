@@ -9,25 +9,21 @@ pub type GnosisBlock = alloy_consensus::Block<TransactionSigned, GnosisHeader>;
 /// The body type of this node
 pub type BlockBody = alloy_consensus::BlockBody<TransactionSigned, GnosisHeader>;
 
-/// Trait to convert a consensus block into a `GnosisBlock`
-pub trait IntoGnosisBlock {
-    fn into_gnosis_block(self) -> GnosisBlock;
-}
-
-impl IntoGnosisBlock for alloy_consensus::Block<TransactionSigned, alloy_consensus::Header> {
-    fn into_gnosis_block(self) -> GnosisBlock {
-        GnosisBlock {
-            header: GnosisHeader::from(self.header),
-            body: BlockBody {
-                transactions: self.body.transactions,
-                ommers: self
-                    .body
-                    .ommers
-                    .into_iter()
-                    .map(GnosisHeader::from)
-                    .collect(),
-                withdrawals: self.body.withdrawals,
-            },
-        }
+/// Convert a vanilla Ethereum block into a [`GnosisBlock`] by re-typing the header.
+pub fn to_gnosis_block(
+    block: alloy_consensus::Block<TransactionSigned, alloy_consensus::Header>,
+) -> GnosisBlock {
+    GnosisBlock {
+        header: GnosisHeader::from(block.header),
+        body: BlockBody {
+            transactions: block.body.transactions,
+            ommers: block
+                .body
+                .ommers
+                .into_iter()
+                .map(GnosisHeader::from)
+                .collect(),
+            withdrawals: block.body.withdrawals,
+        },
     }
 }

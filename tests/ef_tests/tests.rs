@@ -3,10 +3,6 @@
 //! - added EEST tests with the blockchain_tests/{}/{}/{}
 //! - changed ethereum/tests tests to use BlockchainTests path
 
-#![allow(missing_docs)]
-#![cfg(feature = "testing")]
-#![cfg(test)]
-
 macro_rules! general_state_test {
     ($test_name:ident, $fork_or_testname:ident $(, $test:ident, $testname:ident)?) => {
         #[test]
@@ -22,7 +18,7 @@ macro_rules! general_state_test {
 
 #[allow(missing_docs)]
 mod general_state_tests {
-    use crate::testing::{cases::blockchain_test::BlockchainTests, suite::Suite};
+    use crate::{cases::blockchain_test::BlockchainTests, suite::Suite};
 
     ///////////////////////////// TESTS FROM EXECUTION LAYER SPEC TESTS /////////////////////////////
     general_state_test!(modexp, byzantium, eip198_modexp_precompile, modexp);

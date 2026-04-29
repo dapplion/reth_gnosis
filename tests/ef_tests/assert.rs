@@ -1,6 +1,6 @@
 //! Various assertion helpers.
 
-use crate::testing::Error;
+use crate::Error;
 use std::fmt::Debug;
 
 /// A helper like `assert_eq!` that instead returns `Err(Error::Assertion)` on failure.

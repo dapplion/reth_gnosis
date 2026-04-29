@@ -4,7 +4,7 @@
 
 use crate::{
     payload::GnosisBuiltPayload,
-    primitives::block::{GnosisBlock, IntoGnosisBlock, TransactionSigned},
+    primitives::block::{to_gnosis_block, GnosisBlock, TransactionSigned},
     spec::gnosis_spec::GnosisChainSpec,
 };
 use reth::rpc::types::engine::{ExecutionData, ExecutionPayload, ExecutionPayloadEnvelopeV5};
@@ -104,11 +104,8 @@ impl PayloadValidator<GnosisEngineTypes> for GnosisEngineValidator {
             .inner
             .ensure_well_formed_payload::<TransactionSigned>(payload)?;
 
-        // Extract hash and convert to GnosisBlock
         let hash = sealed_block.hash();
-        let gnosis_block = sealed_block.into_block().into_gnosis_block();
-
-        // Create the sealed GnosisBlock with the same hash
+        let gnosis_block = to_gnosis_block(sealed_block.into_block());
         Ok(SealedBlock::new_unchecked(gnosis_block, hash))
     }
 }

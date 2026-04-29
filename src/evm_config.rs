@@ -10,6 +10,7 @@ use reth_provider::errors::any::AnyError;
 use reth_provider::HeaderProvider;
 use revm::context_interface::block::BlobExcessGasAndPrice;
 
+use alloy_eips::eip7840::BlobParams;
 use alloy_eips::Decodable2718;
 use core::fmt::Debug;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
@@ -68,8 +69,6 @@ pub struct GnosisEvmConfig {
     pub executor_factory: GnosisBlockExecutorFactory<RethReceiptBuilder, GnosisEvmFactory>,
     /// Ethereum block assembler.
     pub block_assembler: GnosisBlockAssembler<GnosisChainSpec>,
-    /// Spec.
-    chain_spec: Arc<GnosisChainSpec>,
     /// Header lookup for getting parent block timestamps.
     header_lookup: Arc<dyn HeaderLookup>,
 }
@@ -79,7 +78,6 @@ impl Debug for GnosisEvmConfig {
         f.debug_struct("GnosisEvmConfig")
             .field("executor_factory", &self.executor_factory)
             .field("block_assembler", &self.block_assembler)
-            .field("chain_spec", &self.chain_spec)
             .field("header_lookup", &"<dyn HeaderLookup>")
             .finish()
     }
@@ -120,20 +118,34 @@ impl GnosisEvmConfig {
                 },
                 block_rewards_address,
             ),
-            chain_spec,
             header_lookup: Arc::new(header_lookup),
         }
     }
 
     /// Returns the chain spec associated with this configuration.
     pub fn chain_spec(&self) -> &GnosisChainSpec {
-        &self.chain_spec
+        self.executor_factory.spec()
     }
 
     /// Sets the extra data for the block assembler.
     pub fn with_extra_data(mut self, extra_data: Bytes) -> Self {
         self.block_assembler.extra_data = extra_data;
         self
+    }
+
+    /// Build a `CfgEnv` for the given spec and timestamp, applying the Gnosis blob
+    /// max-per-tx and Osaka tx-gas-cap settings. Returns the cfg env paired with the
+    /// blob params at that timestamp so callers can compute `BlobExcessGasAndPrice`.
+    fn cfg_env_with_blobs(&self, spec: SpecId, timestamp: u64) -> (CfgEnv, Option<BlobParams>) {
+        let blob_params = self.chain_spec().blob_params_at_timestamp(timestamp);
+        let mut cfg_env = get_cfg_env(self.chain_spec(), spec, timestamp);
+        if let Some(bp) = &blob_params {
+            cfg_env.set_max_blobs_per_tx(bp.max_blobs_per_tx);
+        }
+        if self.chain_spec().is_osaka_active_at_timestamp(timestamp) {
+            cfg_env.tx_gas_limit_cap = Some(MAX_TX_GAS_LIMIT_OSAKA);
+        }
+        (cfg_env, blob_params)
     }
 }
 
@@ -153,22 +165,8 @@ impl ConfigureEvm for GnosisEvmConfig {
     }
 
     fn evm_env(&self, header: &GnosisHeader) -> Result<EvmEnv, Self::Error> {
-        let blob_params = self.chain_spec().blob_params_at_timestamp(header.timestamp);
         let spec = revm_spec(self.chain_spec(), header);
-
-        // configure evm env based on parent block
-        let mut cfg_env = get_cfg_env(self.chain_spec(), spec, header.timestamp);
-
-        if let Some(blob_params) = &blob_params {
-            cfg_env.set_max_blobs_per_tx(blob_params.max_blobs_per_tx);
-        }
-
-        if self
-            .chain_spec()
-            .is_osaka_active_at_timestamp(header.timestamp)
-        {
-            cfg_env.tx_gas_limit_cap = Some(MAX_TX_GAS_LIMIT_OSAKA);
-        }
+        let (cfg_env, blob_params) = self.cfg_env_with_blobs(spec, header.timestamp);
 
         // derive the EIP-4844 blob fees from the header's `excess_blob_gas` and the current
         // blobparams
@@ -211,28 +209,12 @@ impl ConfigureEvm for GnosisEvmConfig {
         parent: &GnosisHeader,
         attributes: &NextBlockEnvAttributes,
     ) -> Result<EvmEnv, Self::Error> {
-        // ensure we're not missing any timestamp based hardforks
-        let chain_spec = self.chain_spec();
-        let blob_params = chain_spec.blob_params_at_timestamp(attributes.timestamp);
         let spec_id = revm_spec_by_timestamp_and_block_number(
-            chain_spec,
+            self.chain_spec(),
             attributes.timestamp,
             parent.number() + 1,
         );
-
-        // configure evm env based on parent block
-        let mut cfg = get_cfg_env(&self.chain_spec, spec_id, attributes.timestamp);
-
-        if let Some(blob_params) = &blob_params {
-            cfg.set_max_blobs_per_tx(blob_params.max_blobs_per_tx);
-        }
-
-        if self
-            .chain_spec()
-            .is_osaka_active_at_timestamp(attributes.timestamp)
-        {
-            cfg.tx_gas_limit_cap = Some(MAX_TX_GAS_LIMIT_OSAKA);
-        }
+        let (cfg, blob_params) = self.cfg_env_with_blobs(spec_id, attributes.timestamp);
 
         // if the parent block did not have excess blob gas (i.e. it was pre-cancun), but it is
         // cancun now, we need to set the excess blob gas to the default value(0)
@@ -249,7 +231,9 @@ impl ConfigureEvm for GnosisEvmConfig {
                 }
             });
 
-        let basefee = chain_spec.next_block_base_fee(parent, attributes.timestamp);
+        let basefee = self
+            .chain_spec()
+            .next_block_base_fee(parent, attributes.timestamp);
 
         let gas_limit = attributes.gas_limit;
 
@@ -309,20 +293,9 @@ impl ConfigureEngineEvm<ExecutionData> for GnosisEvmConfig {
         let timestamp = payload.payload.timestamp();
         let block_number = payload.payload.block_number();
 
-        let blob_params = self.chain_spec().blob_params_at_timestamp(timestamp);
         let spec =
             revm_spec_by_timestamp_and_block_number(self.chain_spec(), timestamp, block_number);
-
-        // configure evm env based on parent block
-        let mut cfg_env = get_cfg_env(self.chain_spec(), spec, timestamp);
-
-        if let Some(blob_params) = &blob_params {
-            cfg_env.set_max_blobs_per_tx(blob_params.max_blobs_per_tx);
-        }
-
-        if self.chain_spec().is_osaka_active_at_timestamp(timestamp) {
-            cfg_env.tx_gas_limit_cap = Some(MAX_TX_GAS_LIMIT_OSAKA);
-        }
+        let (cfg_env, blob_params) = self.cfg_env_with_blobs(spec, timestamp);
 
         // derive the EIP-4844 blob fees from the header's `excess_blob_gas` and the current
         // blobparams

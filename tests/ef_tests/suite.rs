@@ -1,6 +1,6 @@
 //! Abstractions for groups of tests.
 
-use crate::testing::{
+use crate::{
     case::{Case, Cases},
     result::assert_tests_pass,
 };

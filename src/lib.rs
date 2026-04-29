@@ -26,7 +26,7 @@ use crate::{
     engine::{GnosisEngineTypes, GnosisEngineValidator},
     payload::GnosisBuiltPayload,
     primitives::{
-        block::{BlockBody, GnosisBlock, TransactionSigned},
+        block::{to_gnosis_block, GnosisBlock, TransactionSigned},
         GnosisNodePrimitives,
     },
     rpc::GnosisNetwork,
@@ -50,33 +50,19 @@ mod pool;
 mod primitives;
 mod rpc;
 pub mod spec;
-mod testing;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, clap::Args)]
-#[command(next_help_heading = "Gnosis")]
-pub struct GnosisArgs {
-    /// Sample arg to test
-    #[arg(long = "gnosis.sample-arg", value_name = "SAMPLE_ARG")]
-    pub sample_arg: Option<String>,
-}
 
 /// Type configuration for a regular Gnosis node.
-#[derive(Debug, Default, Clone)]
-pub struct GnosisNode {
-    /// Additional Gnosis args
-    pub args: GnosisArgs,
-}
+#[derive(Debug, Default, Clone, Copy)]
+#[non_exhaustive]
+pub struct GnosisNode;
 
 impl GnosisNode {
     pub const fn new() -> Self {
-        let args = GnosisArgs { sample_arg: None };
-        Self { args }
+        Self
     }
 
-    /// Returns the components for the given [GnosisArgs].
-    pub fn components<Node>(
-        _args: &GnosisArgs,
-    ) -> ComponentsBuilder<
+    /// Returns the components builder for a Gnosis node.
+    pub fn components<Node>() -> ComponentsBuilder<
         Node,
         GnosisPoolBuilder,
         BasicPayloadServiceBuilder<GnosisPayloadBuilder>,
@@ -119,21 +105,7 @@ impl<N: FullNodeComponents<Types = Self>> DebugNode<N> for GnosisNode {
     type RpcBlock = alloy_rpc_types_eth::Block;
 
     fn rpc_to_primitive_block(rpc_block: Self::RpcBlock) -> GnosisBlock {
-        let block: reth_ethereum_primitives::Block =
-            rpc_block.into_consensus().convert_transactions();
-        GnosisBlock {
-            header: GnosisHeader::from(block.header),
-            body: BlockBody {
-                transactions: block.body.transactions,
-                ommers: block
-                    .body
-                    .ommers
-                    .into_iter()
-                    .map(GnosisHeader::from)
-                    .collect(),
-                withdrawals: block.body.withdrawals,
-            },
-        }
+        to_gnosis_block(rpc_block.into_consensus().convert_transactions())
     }
 
     fn local_payload_attributes_builder(
@@ -164,8 +136,7 @@ where
     type AddOns = GnosisAddOns<NodeAdapter<N>>;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
-        let Self { args } = self;
-        Self::components(args)
+        Self::components()
     }
 
     fn add_ons(&self) -> Self::AddOns {

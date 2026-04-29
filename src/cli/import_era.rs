@@ -71,7 +71,6 @@ where
     C: ChainSpecParser<ChainSpec: EthChainSpec + EthereumHardforks>,
     N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = GnosisNodePrimitives>,
 {
-    dbg!("Starting import era...");
     info!(target: "reth::cli", "reth {} starting", version_metadata().short_version.as_ref());
 
     let Environment {

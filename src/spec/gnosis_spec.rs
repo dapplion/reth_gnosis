@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
 use core::fmt::Display;
 use tracing::debug;
@@ -13,7 +13,7 @@ use derive_more::{Constructor, Deref, From, Into};
 use reth_chainspec::{
     make_genesis_header, BaseFeeParams, BaseFeeParamsKind, ChainHardforks, ChainSpec,
     ChainSpecBuilder, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
-    ForkCondition, ForkFilter, ForkFilterKey, ForkHash, ForkId, Hardfork, Hardforks, Head,
+    ForkCondition, ForkFilter, ForkId, Hardfork, Hardforks, Head,
 };
 use reth_cli::chainspec::{parse_genesis, ChainSpecParser};
 use reth_ethereum_forks::hardfork;
@@ -174,66 +174,13 @@ impl Hardforks for GnosisChainSpec {
         self.inner.forks_iter()
     }
 
+    // We delegate fork_id and fork_filter to the inner ChainSpec. This is correct
+    // because `From<Genesis>` constructs `inner.genesis_header` carrying the
+    // Gnosis-typed genesis hash (see Self construction below), so
+    // `inner.genesis_hash() == self.genesis_hash()`.
+
     fn fork_id(&self, head: &Head) -> ForkId {
-        let mut forkhash = ForkHash::from(self.genesis_hash());
-        let mut current_applied = 0;
-
-        // handle all block forks before handling timestamp based forks. see: https://eips.ethereum.org/EIPS/eip-6122
-        for (_, cond) in self.hardforks.forks_iter() {
-            // handle block based forks and the sepolia merge netsplit block edge case (TTD
-            // ForkCondition with Some(block))
-            if let ForkCondition::Block(block)
-            | ForkCondition::TTD {
-                fork_block: Some(block),
-                ..
-            } = cond
-            {
-                if head.number >= block {
-                    // skip duplicated hardforks: hardforks enabled at genesis block
-                    if block != current_applied {
-                        forkhash += block;
-                        current_applied = block;
-                    }
-                } else {
-                    // we can return here because this block fork is not active, so we set the
-                    // `next` value
-                    return ForkId {
-                        hash: forkhash,
-                        next: block,
-                    };
-                }
-            }
-        }
-
-        // timestamp are ALWAYS applied after the merge.
-        //
-        // this filter ensures that no block-based forks are returned
-        for timestamp in self.hardforks.forks_iter().filter_map(|(_, cond)| {
-            // ensure we only get timestamp forks activated __after__ the genesis block
-            cond.as_timestamp()
-                .filter(|time| time > &self.genesis.timestamp)
-        }) {
-            if head.timestamp >= timestamp {
-                // skip duplicated hardfork activated at the same timestamp
-                if timestamp != current_applied {
-                    forkhash += timestamp;
-                    current_applied = timestamp;
-                }
-            } else {
-                // can safely return here because we have already handled all block forks and
-                // have handled all active timestamp forks, and set the next value to the
-                // timestamp that is known but not active yet
-                return ForkId {
-                    hash: forkhash,
-                    next: timestamp,
-                };
-            }
-        }
-
-        ForkId {
-            hash: forkhash,
-            next: 0,
-        }
+        self.inner.fork_id(head)
     }
 
     fn latest_fork_id(&self) -> ForkId {
@@ -241,21 +188,7 @@ impl Hardforks for GnosisChainSpec {
     }
 
     fn fork_filter(&self, head: Head) -> ForkFilter {
-        let forks = self.hardforks.forks_iter().filter_map(|(_, condition)| {
-            // We filter out TTD-based forks w/o a pre-known block since those do not show up in the
-            // fork filter.
-            Some(match condition {
-                ForkCondition::Block(block)
-                | ForkCondition::TTD {
-                    fork_block: Some(block),
-                    ..
-                } => ForkFilterKey::Block(block),
-                ForkCondition::Timestamp(time) => ForkFilterKey::Time(time),
-                _ => return None,
-            })
-        });
-
-        ForkFilter::new(head, self.genesis_hash(), self.genesis_timestamp(), forks)
+        self.inner.fork_filter(head)
     }
 }
 
@@ -464,13 +397,19 @@ impl From<Genesis> for GnosisChainSpec {
             genesis_header.aura_step = Some(U256::ZERO);
         }
         let genesis_header = SealedHeader::new_unhashed(genesis_header);
+        // Force inner.genesis_header to carry the Gnosis-typed genesis hash so that
+        // delegating Hardforks::fork_id / fork_filter to the inner ChainSpec computes
+        // the correct EIP-2124 fork hash for Gnosis (which differs from a vanilla
+        // Ethereum-typed header on Gnosis mainnet because of AuRa fields).
+        let inner_genesis_header = SealedHeader::new(
+            make_genesis_header(&genesis, &hardforks),
+            genesis_header.hash(),
+        );
 
         Self {
             inner: ChainSpec {
                 chain: genesis.config.chain_id.into(),
-                genesis_header: SealedHeader::new_unhashed(make_genesis_header(
-                    &genesis, &hardforks,
-                )),
+                genesis_header: inner_genesis_header,
                 genesis,
                 hardforks,
                 paris_block_and_final_difficulty,
@@ -525,69 +464,8 @@ impl GnosisHardForks for GnosisChainSpec {
 }
 
 impl GnosisChainSpec {
-    /// Log fork IDs for all hardforks, including future ones
+    /// Log fork IDs for all hardforks, including future ones.
     pub fn log_all_fork_ids(&self) {
-        debug!(target: "reth::gnosis", "=== Fork IDs for all hardforks ===");
-
-        let genesis_hash = self.genesis_hash();
-        let mut forkhash = ForkHash::from(genesis_hash);
-        let mut current_applied = 0;
-
-        debug!(target: "reth::gnosis", %genesis_hash, ?forkhash, "Genesis info");
-
-        // Log block-based forks
-        debug!(target: "reth::gnosis", "Block-based forks:");
-        for (hardfork, cond) in self.hardforks.forks_iter() {
-            match cond {
-                ForkCondition::Block(block)
-                | ForkCondition::TTD {
-                    fork_block: Some(block),
-                    ..
-                } => {
-                    if block != current_applied {
-                        forkhash += block;
-                        current_applied = block;
-                    }
-                    debug!(
-                        target: "reth::gnosis",
-                        hardfork = %hardfork.name(),
-                        block,
-                        ?forkhash,
-                        "Block fork"
-                    );
-                }
-                _ => {}
-            }
-        }
-
-        // Log timestamp-based forks
-        debug!(target: "reth::gnosis", "Timestamp-based forks:");
-        for (hardfork, cond) in self.hardforks.forks_iter() {
-            if let ForkCondition::Timestamp(timestamp) = cond {
-                if timestamp > self.genesis.timestamp && timestamp != current_applied {
-                    forkhash += timestamp;
-                    current_applied = timestamp;
-                }
-                debug!(
-                    target: "reth::gnosis",
-                    hardfork = %hardfork.name(),
-                    timestamp,
-                    ?forkhash,
-                    "Timestamp fork"
-                );
-            }
-        }
-
-        let current_timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        debug!(
-            target: "reth::gnosis",
-            ?forkhash,
-            current_timestamp,
-            "Final fork hash"
-        );
+        debug!(target: "reth::gnosis", genesis_hash = ?self.genesis_hash(), latest = ?self.latest_fork_id(), "fork ids");
     }
 }
